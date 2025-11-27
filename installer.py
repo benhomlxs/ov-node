@@ -312,6 +312,7 @@ def show_node_info():
         )
         input("Press Enter to return to the menu...")
         menu()
+        return
 
     try:
         # Read .env file
@@ -445,6 +446,7 @@ def uninstall_ovnode():
         if uninstall.lower() != "y":
             print("Uninstallation canceled.")
             menu()
+            return
 
         subprocess.run(["clear"])
         print("Please wait...")
