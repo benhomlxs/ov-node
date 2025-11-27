@@ -34,6 +34,74 @@ def create_ccd() -> None:
         )
 
 
+def apply_openvpn_config(tunnel_address: str, protocol: str, ovpn_port: str) -> None:
+    """Apply OpenVPN configuration settings"""
+    import re
+
+    server_conf = "/etc/openvpn/server/server.conf"
+    template_file = "/etc/openvpn/server/client-common.txt"
+
+    try:
+        # Update server.conf
+        if os.path.exists(server_conf):
+            with open(server_conf, "r") as f:
+                config = f.read()
+
+            config = re.sub(
+                r"^port\s+\d+", f"port {ovpn_port}", config, flags=re.MULTILINE
+            )
+            config = re.sub(
+                r"^proto\s+\w+", f"proto {protocol}", config, flags=re.MULTILINE
+            )
+
+            with open(server_conf, "w") as f:
+                f.write(config)
+
+        # Update client-common.txt
+        if os.path.exists(template_file):
+            with open(template_file, "r") as f:
+                template = f.read()
+
+            if tunnel_address and tunnel_address.strip() != "":
+                template = re.sub(
+                    r"^remote\s+\S+\s+\d+",
+                    f"remote {tunnel_address} {ovpn_port}",
+                    template,
+                    flags=re.MULTILINE,
+                )
+            else:
+                template = re.sub(
+                    r"^remote\s+(\S+)\s+\d+",
+                    rf"remote \1 {ovpn_port}",
+                    template,
+                    flags=re.MULTILINE,
+                )
+
+            template = re.sub(
+                r"^proto\s+\w+", f"proto {protocol}", template, flags=re.MULTILINE
+            )
+
+            with open(template_file, "w") as f:
+                f.write(template)
+
+        # Restart OpenVPN service
+        subprocess.run(
+            ["systemctl", "restart", "openvpn-server@server.service"], check=True
+        )
+        print(
+            Fore.GREEN
+            + f"✓ OpenVPN configured: {protocol}://{tunnel_address}:{ovpn_port}"
+            + Style.RESET_ALL
+        )
+
+    except Exception as e:
+        print(
+            Fore.YELLOW
+            + f"⚠ Warning: Could not apply OpenVPN config: {e}"
+            + Style.RESET_ALL
+        )
+
+
 def install_ovnode():
     if os.path.exists("/etc/openvpn"):
         print("OV-Node is already installed.")
@@ -70,18 +138,57 @@ def install_ovnode():
         create_ccd()
 
         # OV-Node configuration prompts
+        print()
+        print(Fore.CYAN + "=" * 50)
+        print("OV-Node Configuration")
+        print("=" * 50 + Style.RESET_ALL)
+        print()
+
         shutil.copy(".env.example", ".env")
         example_uuid = str(uuid4())
-        SERVICE_PORT = input("OV-Node service port (default 9090): ")
-        if SERVICE_PORT.strip() == "":
+
+        # Get server IP automatically
+        try:
+            import socket
+
+            hostname = socket.gethostname()
+            server_ip = socket.gethostbyname(hostname)
+        except:
+            server_ip = "YOUR_SERVER_IP"
+
+        print(
+            Fore.YELLOW
+            + "Note: These settings are needed to connect this node to OV-Panel"
+            + Style.RESET_ALL
+        )
+        print()
+
+        TUNNEL_ADDRESS = input(f"Tunnel Address (default: {server_ip}): ").strip()
+        if TUNNEL_ADDRESS == "":
+            TUNNEL_ADDRESS = server_ip
+
+        PROTOCOL = input("Protocol - tcp or udp (default: udp): ").strip().lower()
+        if PROTOCOL not in ["tcp", "udp"]:
+            PROTOCOL = "udp"
+
+        OVPN_PORT = input("OpenVPN Port (default: 1194): ").strip()
+        if OVPN_PORT == "":
+            OVPN_PORT = "1194"
+
+        SERVICE_PORT = input("OV-Node service port (default: 9090): ").strip()
+        if SERVICE_PORT == "":
             SERVICE_PORT = "9090"
-        API_KEY = input(f"OV-Node API key (example: {example_uuid}): ")
-        if API_KEY.strip() == "":
+
+        API_KEY = input(f"OV-Node API key (default: {example_uuid}): ").strip()
+        if API_KEY == "":
             API_KEY = example_uuid
 
         replacements = {
             "SERVICE_PORT": SERVICE_PORT,
             "API_KEY": API_KEY,
+            "TUNNEL_ADDRESS": TUNNEL_ADDRESS,
+            "PROTOCOL": PROTOCOL,
+            "OVPN_PORT": OVPN_PORT,
         }
 
         lines = []
@@ -99,8 +206,43 @@ def install_ovnode():
         with open(".env", "w") as f:
             f.writelines(lines)
 
+        # Apply OpenVPN configuration
+        apply_openvpn_config(TUNNEL_ADDRESS, PROTOCOL, OVPN_PORT)
+
         run_ovnode()
-        input("Successfully installed, Press Enter to return to the menu...")
+
+        # Display configuration summary
+        print()
+        print(Fore.GREEN + "=" * 50)
+        print("Installation Completed Successfully!")
+        print("=" * 50 + Style.RESET_ALL)
+        print()
+        print(Fore.CYAN + "Node Configuration Details:" + Style.RESET_ALL)
+        print(Fore.YELLOW + "-" * 50 + Style.RESET_ALL)
+        print(
+            f"{Fore.WHITE}Tunnel Address:{Style.RESET_ALL}  {Fore.GREEN}{TUNNEL_ADDRESS}{Style.RESET_ALL}"
+        )
+        print(
+            f"{Fore.WHITE}Protocol:{Style.RESET_ALL}        {Fore.GREEN}{PROTOCOL}{Style.RESET_ALL}"
+        )
+        print(
+            f"{Fore.WHITE}OpenVPN Port:{Style.RESET_ALL}    {Fore.GREEN}{OVPN_PORT}{Style.RESET_ALL}"
+        )
+        print(
+            f"{Fore.WHITE}Service Port:{Style.RESET_ALL}    {Fore.GREEN}{SERVICE_PORT}{Style.RESET_ALL}"
+        )
+        print(
+            f"{Fore.WHITE}API Key:{Style.RESET_ALL}         {Fore.GREEN}{API_KEY}{Style.RESET_ALL}"
+        )
+        print(Fore.YELLOW + "-" * 50 + Style.RESET_ALL)
+        print()
+        print(
+            Fore.CYAN
+            + "⚠ IMPORTANT: Save these details to add this node to OV-Panel!"
+            + Style.RESET_ALL
+        )
+        print()
+        input("Press Enter to return to the menu...")
         menu()
 
     except Exception as e:
@@ -160,6 +302,116 @@ def update_ovnode():
         print(Fore.RED + f"Update failed: {e}" + Style.RESET_ALL)
 
 
+def show_node_info():
+    """Display node configuration information"""
+    if not os.path.exists("/opt/ov-node/.env"):
+        print(
+            Fore.RED
+            + "OV-Node is not installed or .env file not found."
+            + Style.RESET_ALL
+        )
+        input("Press Enter to return to the menu...")
+        menu()
+
+    try:
+        # Read .env file
+        env_data = {}
+        with open("/opt/ov-node/.env", "r") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, value = line.split("=", 1)
+                    env_data[key.strip()] = value.strip()
+
+        # Read OpenVPN config from .env first, then fall back to config files
+        ovpn_port = env_data.get("OVPN_PORT", None)
+        protocol = env_data.get("PROTOCOL", None)
+        tunnel_address = env_data.get("TUNNEL_ADDRESS", None)
+
+        # If not in .env, read from OpenVPN config files
+        if ovpn_port is None or protocol is None or tunnel_address is None:
+            if os.path.exists("/etc/openvpn/server/server.conf"):
+                with open("/etc/openvpn/server/server.conf", "r") as f:
+                    for line in f:
+                        if line.strip().startswith("port ") and ovpn_port is None:
+                            ovpn_port = line.split()[1]
+                        elif line.strip().startswith("proto ") and protocol is None:
+                            protocol = line.split()[1]
+
+            if tunnel_address is None and os.path.exists(
+                "/etc/openvpn/server/client-common.txt"
+            ):
+                with open("/etc/openvpn/server/client-common.txt", "r") as f:
+                    for line in f:
+                        if line.strip().startswith("remote "):
+                            parts = line.split()
+                            if len(parts) >= 2:
+                                tunnel_address = parts[1]
+
+        # Set defaults if still not found
+        if ovpn_port is None:
+            ovpn_port = "1194"
+        if protocol is None:
+            protocol = "udp"
+        if tunnel_address is None:
+            tunnel_address = "N/A"
+
+        print()
+        print(Fore.CYAN + "=" * 50)
+        print("Node Configuration Details")
+        print("=" * 50 + Style.RESET_ALL)
+        print()
+        print(Fore.YELLOW + "-" * 50 + Style.RESET_ALL)
+        print(
+            f"{Fore.WHITE}Tunnel Address:{Style.RESET_ALL}  {Fore.GREEN}{tunnel_address}{Style.RESET_ALL}"
+        )
+        print(
+            f"{Fore.WHITE}Protocol:{Style.RESET_ALL}        {Fore.GREEN}{protocol}{Style.RESET_ALL}"
+        )
+        print(
+            f"{Fore.WHITE}OpenVPN Port:{Style.RESET_ALL}    {Fore.GREEN}{ovpn_port}{Style.RESET_ALL}"
+        )
+        print(
+            f"{Fore.WHITE}Service Port:{Style.RESET_ALL}    {Fore.GREEN}{env_data.get('SERVICE_PORT', 'N/A')}{Style.RESET_ALL}"
+        )
+        print(
+            f"{Fore.WHITE}API Key:{Style.RESET_ALL}         {Fore.GREEN}{env_data.get('API_KEY', 'N/A')}{Style.RESET_ALL}"
+        )
+        print(Fore.YELLOW + "-" * 50 + Style.RESET_ALL)
+        print()
+
+        # Check service status
+        try:
+            result = subprocess.run(
+                ["systemctl", "is-active", "ov-node"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            status = result.stdout.strip()
+            if status == "active":
+                print(
+                    f"{Fore.WHITE}Service Status:{Style.RESET_ALL}   {Fore.GREEN}● Running{Style.RESET_ALL}"
+                )
+            else:
+                print(
+                    f"{Fore.WHITE}Service Status:{Style.RESET_ALL}   {Fore.RED}● Stopped{Style.RESET_ALL}"
+                )
+        except:
+            print(
+                f"{Fore.WHITE}Service Status:{Style.RESET_ALL}   {Fore.YELLOW}● Unknown{Style.RESET_ALL}"
+            )
+
+        print()
+        input("Press Enter to return to the menu...")
+        menu()
+
+    except Exception as e:
+        print(Fore.RED + f"Error reading node info: {e}" + Style.RESET_ALL)
+        input("Press Enter to return to the menu...")
+        menu()
+
+
 def restart_ovnode():
     if not os.path.exists("/opt/ov-node") and not os.path.exists("/etc/openvpn"):
         print("OV-Node is not installed.")
@@ -181,7 +433,7 @@ def restart_ovnode():
 
 
 def uninstall_ovnode():
-    if not os.path.exists("/opt/ov-node"):
+    if not os.path.exists("/opt/ov-node") and not os.path.exists("/etc/openvpn"):
         print("OV-Node is not installed.")
         input("Press Enter to return to the menu...")
         menu()
@@ -191,27 +443,79 @@ def uninstall_ovnode():
             print("Uninstallation canceled.")
             menu()
 
-        bash = pexpect.spawn("bash /root/openvpn-install.sh", timeout=300)
-        subprocess.run("clear")
+        subprocess.run(["clear"])
         print("Please wait...")
+        print(
+            Fore.YELLOW + "Stopping and removing OV-Node service..." + Style.RESET_ALL
+        )
 
-        bash.expect("Option:")
-        bash.sendline("3")
+        # Stop and disable OV-Node service
+        deactivate_ovnode()
 
-        bash.expect("Confirm OpenVPN removal")
-        bash.sendline("y")
+        # Remove OV-Node directory
+        if os.path.exists("/opt/ov-node"):
+            print(Fore.YELLOW + "Removing OV-Node files..." + Style.RESET_ALL)
+            shutil.rmtree("/opt/ov-node")
+            print(Fore.GREEN + "✓ OV-Node files removed" + Style.RESET_ALL)
 
-        bash.expect(pexpect.EOF, timeout=60)
-        bash.close()
+        # Remove virtual environment
+        if os.path.exists("/opt/ov-node_venv"):
+            print(Fore.YELLOW + "Removing virtual environment..." + Style.RESET_ALL)
+            shutil.rmtree("/opt/ov-node_venv")
+            print(Fore.GREEN + "✓ Virtual environment removed" + Style.RESET_ALL)
 
-        pexpect.run("rm -rf /etc/openvpn")
+        # Uninstall OpenVPN if the script exists
+        if os.path.exists("/root/openvpn-install.sh"):
+            print(Fore.YELLOW + "Uninstalling OpenVPN..." + Style.RESET_ALL)
+            try:
+                bash = pexpect.spawn(
+                    "bash /root/openvpn-install.sh", timeout=300, encoding="utf-8"
+                )
 
+                bash.expect("Option:", timeout=30)
+                bash.sendline("3")
+
+                bash.expect("Confirm OpenVPN removal", timeout=30)
+                bash.sendline("y")
+
+                bash.expect(pexpect.EOF, timeout=60)
+                bash.close()
+                print(Fore.GREEN + "✓ OpenVPN uninstalled" + Style.RESET_ALL)
+            except pexpect.TIMEOUT:
+                print(
+                    Fore.YELLOW
+                    + "⚠ OpenVPN uninstall timeout, removing manually..."
+                    + Style.RESET_ALL
+                )
+            except Exception as e:
+                print(
+                    Fore.YELLOW
+                    + f"⚠ OpenVPN uninstall error: {e}, removing manually..."
+                    + Style.RESET_ALL
+                )
+
+        # Force remove OpenVPN directories
+        if os.path.exists("/etc/openvpn"):
+            print(Fore.YELLOW + "Removing OpenVPN configuration..." + Style.RESET_ALL)
+            shutil.rmtree("/etc/openvpn")
+            print(Fore.GREEN + "✓ OpenVPN configuration removed" + Style.RESET_ALL)
+
+        # Remove OpenVPN install script
+        if os.path.exists("/root/openvpn-install.sh"):
+            os.remove("/root/openvpn-install.sh")
+            print(Fore.GREEN + "✓ OpenVPN install script removed" + Style.RESET_ALL)
+
+        # Remove .env file if exists
+        if os.path.exists(".env"):
+            os.remove(".env")
+            print(Fore.GREEN + "✓ Environment file removed" + Style.RESET_ALL)
+
+        print()
         print(
             Fore.GREEN
             + "OV-Node uninstallation completed successfully!"
             + Style.RESET_ALL
         )
-        deactivate_ovnode()
         input("Press Enter to return to the menu...")
         menu()
 
@@ -256,9 +560,32 @@ WantedBy=multi-user.target
 
 def deactivate_ovnode() -> None:
     """Stop and disable the OV-Node systemd service"""
-    subprocess.run(["sudo", "systemctl", "stop", "ov-node"])
-    subprocess.run(["sudo", "systemctl", "disable", "ov-node"])
-    subprocess.run(["rm", "-f", "/etc/systemd/system/ov-node.service"])
+    try:
+        subprocess.run(
+            ["sudo", "systemctl", "stop", "ov-node"],
+            check=False,
+            stderr=subprocess.DEVNULL,
+        )
+        subprocess.run(
+            ["sudo", "systemctl", "disable", "ov-node"],
+            check=False,
+            stderr=subprocess.DEVNULL,
+        )
+        if os.path.exists("/etc/systemd/system/ov-node.service"):
+            subprocess.run(
+                ["rm", "-f", "/etc/systemd/system/ov-node.service"], check=False
+            )
+        subprocess.run(
+            ["sudo", "systemctl", "daemon-reload"],
+            check=False,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception as e:
+        print(
+            Fore.YELLOW
+            + f"⚠ Warning during service deactivation: {e}"
+            + Style.RESET_ALL
+        )
 
 
 def menu():
@@ -271,8 +598,9 @@ def menu():
     print("  1. Install")
     print("  2. Update")
     print("  3. Restart")
-    print("  4. Uninstall")
-    print("  5. Exit")
+    print("  4. Show Node Info")
+    print("  5. Uninstall")
+    print("  6. Exit")
     print()
     choice = input(Fore.YELLOW + "Enter your choice: " + Style.RESET_ALL)
 
@@ -283,8 +611,10 @@ def menu():
     elif choice == "3":
         restart_ovnode()
     elif choice == "4":
-        uninstall_ovnode()
+        show_node_info()
     elif choice == "5":
+        uninstall_ovnode()
+    elif choice == "6":
         print(Fore.GREEN + "\nExiting..." + Style.RESET_ALL)
         sys.exit()
     else:
