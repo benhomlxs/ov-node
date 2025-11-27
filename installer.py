@@ -475,7 +475,7 @@ def show_node_info():
 
 
 def restart_ovnode():
-    if not os.path.exists("/opt/ov-node") and not os.path.exists("/etc/openvpn"):
+    if not os.path.exists("/opt/ov-node") or not os.path.exists("/etc/openvpn"):
         print("OV-Node is not installed.")
         input("Press Enter to return to the menu...")
         menu()
@@ -497,7 +497,7 @@ def restart_ovnode():
 
 
 def uninstall_ovnode():
-    if not os.path.exists("/opt/ov-node") and not os.path.exists("/etc/openvpn"):
+    if not os.path.exists("/opt/ov-node") or not os.path.exists("/etc/openvpn"):
         print("OV-Node is not installed.")
         input("Press Enter to return to the menu...")
         menu()
