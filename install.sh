@@ -4,7 +4,7 @@ set -e
 APP_NAME="ov-node"
 INSTALL_DIR="/opt/$APP_NAME"
 VENV_DIR="/opt/${APP_NAME}_venv"
-REPO_URL="https://github.com/primeZdev/ov-node"
+REPO_URL="https://github.com/benhomlxs/ov-node"
 PYTHON="/usr/bin/python3"
 
 GREEN="\033[0;32m"
@@ -28,7 +28,7 @@ pip install colorama pexpect requests uuid uv
 if [ ! -d "$INSTALL_DIR" ]; then
     echo -e "${YELLOW}Downloading latest release...${NC}"
 
-    LATEST_URL=$(curl -s https://api.github.com/repos/primeZdev/ov-node/releases/latest \
+    LATEST_URL=$(curl -s https://api.github.com/repos/benhomlxs/ov-node/releases/latest \
         | grep "tarball_url" \
         | cut -d '"' -f 4)
 
