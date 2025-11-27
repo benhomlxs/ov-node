@@ -343,7 +343,10 @@ def show_node_info():
             ):
                 with open("/etc/openvpn/server/client-common.txt", "r") as f:
                     for line in f:
-                        if line.strip().startswith("remote "):
+                        if (
+                            line.strip().startswith("remote ")
+                            and tunnel_address is None
+                        ):
                             parts = line.split()
                             if len(parts) >= 2:
                                 tunnel_address = parts[1]
