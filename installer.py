@@ -42,6 +42,10 @@ def apply_openvpn_config(tunnel_address: str, protocol: str, ovpn_port: str) -> 
     template_file = "/etc/openvpn/server/client-common.txt"
 
     try:
+        # Determine correct protocol format for server and client
+        server_proto = f"{protocol}-server" if protocol == "tcp" else protocol
+        client_proto = f"{protocol}-client" if protocol == "tcp" else protocol
+
         # Update server.conf
         if os.path.exists(server_conf):
             with open(server_conf, "r") as f:
@@ -51,7 +55,7 @@ def apply_openvpn_config(tunnel_address: str, protocol: str, ovpn_port: str) -> 
                 r"^port\s+\d+", f"port {ovpn_port}", config, flags=re.MULTILINE
             )
             config = re.sub(
-                r"^proto\s+\w+", f"proto {protocol}", config, flags=re.MULTILINE
+                r"^proto\s+[\w-]+", f"proto {server_proto}", config, flags=re.MULTILINE
             )
 
             with open(server_conf, "w") as f:
@@ -78,7 +82,10 @@ def apply_openvpn_config(tunnel_address: str, protocol: str, ovpn_port: str) -> 
                 )
 
             template = re.sub(
-                r"^proto\s+\w+", f"proto {protocol}", template, flags=re.MULTILINE
+                r"^proto\s+[\w-]+",
+                f"proto {client_proto}",
+                template,
+                flags=re.MULTILINE,
             )
 
             with open(template_file, "w") as f:
@@ -107,6 +114,7 @@ def install_ovnode():
         print("OV-Node is already installed.")
         input("Press Enter to continue...")
         menu()
+        return
     try:
         subprocess.run(
             ["wget", "https://git.io/vpn", "-O", "/root/openvpn-install.sh"], check=True
@@ -196,8 +204,8 @@ def install_ovnode():
             for line in f:
                 replaced = False
                 for key, value in replacements.items():
-                    if line.startswith(f"{key}"):
-                        lines.append(f"{key}={value}\n")
+                    if line.strip().startswith(f"{key}") and ("=" in line):
+                        lines.append(f"{key} = {value}\n")
                         replaced = True
                         break
                 if not replaced:
@@ -249,6 +257,7 @@ def install_ovnode():
         print("Error occurred during installation:", e)
         input("Press Enter to return to the menu...")
         menu()
+        return
 
 
 def update_ovnode():
@@ -256,6 +265,7 @@ def update_ovnode():
         print("OV-Node is not installed.")
         input("Press Enter to return to the menu...")
         menu()
+        return
     try:
         repo = "https://api.github.com/repos/primeZdev/ov-node/releases/latest"
         install_dir = "/opt/ov-node"
@@ -414,6 +424,7 @@ def show_node_info():
         print(Fore.RED + f"Error reading node info: {e}" + Style.RESET_ALL)
         input("Press Enter to return to the menu...")
         menu()
+        return
 
 
 def restart_ovnode():
@@ -421,6 +432,7 @@ def restart_ovnode():
         print("OV-Node is not installed.")
         input("Press Enter to return to the menu...")
         menu()
+        return
     try:
         subprocess.run(["systemctl", "restart", "ov-node"], check=True)
         subprocess.run(["systemctl", "restart", "openvpn-server@server"], check=True)
@@ -434,6 +446,7 @@ def restart_ovnode():
         print(Fore.RED + f"Restart failed: {e}" + Style.RESET_ALL)
         input("Press Enter to return to the menu...")
         menu()
+        return
 
 
 def uninstall_ovnode():
@@ -441,6 +454,7 @@ def uninstall_ovnode():
         print("OV-Node is not installed.")
         input("Press Enter to return to the menu...")
         menu()
+        return
     try:
         uninstall = input("Do you want to uninstall OV-Node? (y/n): ")
         if uninstall.lower() != "y":
@@ -533,6 +547,7 @@ def uninstall_ovnode():
         )
         input("Press Enter to return to the menu...")
         menu()
+        return
 
 
 def run_ovnode() -> None:
