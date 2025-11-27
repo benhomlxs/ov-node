@@ -24,11 +24,13 @@ pip install --upgrade pip setuptools wheel
 echo -e "${YELLOW}Installing dependencies in venv...${NC}"
 pip install colorama pexpect requests uuid uv
 
-# Download repo from main branch
+# Download latest release
 if [ ! -d "$INSTALL_DIR" ]; then
-    echo -e "${YELLOW}Downloading from main branch...${NC}"
+    echo -e "${YELLOW}Downloading latest release...${NC}"
 
-    LATEST_URL="https://github.com/benhomlxs/ov-node/archive/refs/heads/main.tar.gz"
+    LATEST_URL=$(curl -s https://api.github.com/repos/benhomlxs/ov-node/releases/latest \
+        | grep "tarball_url" \
+        | cut -d '"' -f 4)
 
     mkdir -p "$INSTALL_DIR"
     cd /tmp

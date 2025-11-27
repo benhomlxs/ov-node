@@ -318,15 +318,19 @@ def update_ovnode():
         menu()
         return
     try:
+        repo = "https://api.github.com/repos/benhomlxs/ov-node/releases/latest"
         install_dir = "/opt/ov-node"
         env_file = os.path.join(install_dir, ".env")
         backup_env = "/tmp/ovnode_env_backup"
 
-        # Download from main branch
-        download_url = "https://github.com/benhomlxs/ov-node/archive/refs/heads/main.tar.gz"
+        response = requests.get(repo)
+        response.raise_for_status()
+        release = response.json()
+
+        download_url = release["tarball_url"]
         filename = "/tmp/ov-node-latest.tar.gz"
 
-        print(Fore.YELLOW + f"Downloading from main branch..." + Style.RESET_ALL)
+        print(Fore.YELLOW + f"Downloading latest release..." + Style.RESET_ALL)
         subprocess.run(["wget", "-O", filename, download_url], check=True)
 
         if os.path.exists(env_file):
