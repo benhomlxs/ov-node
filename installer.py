@@ -154,15 +154,19 @@ def install_ovnode():
 
         # Determine the correct path for .env file
         install_dir = "/opt/ov-node"
-        env_example_path = (
-            os.path.join(install_dir, ".env.example")
-            if os.path.exists(install_dir)
-            else ".env.example"
-        )
-        env_path = (
-            os.path.join(install_dir, ".env") if os.path.exists(install_dir) else ".env"
-        )
-
+        
+        # Ensure the install directory exists
+        if not os.path.exists(install_dir):
+            os.makedirs(install_dir, exist_ok=True)
+        
+        # Always use absolute paths for .env files
+        env_example_path = os.path.join(install_dir, ".env.example")
+        env_path = os.path.join(install_dir, ".env")
+        
+        # If .env.example doesn't exist in install_dir, look in current directory
+        if not os.path.exists(env_example_path) and os.path.exists(".env.example"):
+            shutil.copy(".env.example", env_example_path)
+        
         shutil.copy(env_example_path, env_path)
         example_uuid = str(uuid4())
 
@@ -571,15 +575,10 @@ def uninstall_ovnode():
             os.remove("/root/openvpn-install.sh")
             print(Fore.GREEN + "✓ OpenVPN install script removed" + Style.RESET_ALL)
 
-        # Remove .env file if exists (check both possible locations)
-        env_removed = False
-        if os.path.exists("/opt/ov-node/.env"):
-            os.remove("/opt/ov-node/.env")
-            env_removed = True
-        if os.path.exists(".env"):
-            os.remove(".env")
-            env_removed = True
-        if env_removed:
+        # Remove .env file if exists (use absolute path only)
+        env_file_path = "/opt/ov-node/.env"
+        if os.path.exists(env_file_path):
+            os.remove(env_file_path)
             print(Fore.GREEN + "✓ Environment file removed" + Style.RESET_ALL)
 
         print()
