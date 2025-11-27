@@ -245,10 +245,16 @@ def install_ovnode():
             for line in f:
                 replaced = False
                 for key, value in replacements.items():
-                    if line.strip().startswith(f"{key}") and ("=" in line):
-                        lines.append(f"{key} = {value}\n")
-                        replaced = True
-                        break
+                    # Match exact key name followed by whitespace or = to avoid prefix matching
+                    stripped = line.strip()
+                    if stripped.startswith(f"{key}") and ("=" in line):
+                        # Ensure it's the exact key, not a prefix match
+                        # Check if after the key there's whitespace or =
+                        after_key = stripped[len(key) :]
+                        if after_key and after_key[0] in (" ", "\t", "="):
+                            lines.append(f"{key} = {value}\n")
+                            replaced = True
+                            break
                 if not replaced:
                     lines.append(line)
 
