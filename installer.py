@@ -159,14 +159,33 @@ def install_ovnode():
         if not os.path.exists(install_dir):
             os.makedirs(install_dir, exist_ok=True)
         
-        # Always use absolute paths for .env files
+        # Try to find .env.example in multiple locations
+        env_example_source = None
+        possible_locations = [
+            ".env.example",  # Current directory
+            os.path.join(install_dir, ".env.example"),  # Install directory
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env.example"),  # Script directory
+        ]
+        
+        for location in possible_locations:
+            if os.path.exists(location):
+                env_example_source = location
+                break
+        
+        if env_example_source is None:
+            raise FileNotFoundError(
+                ".env.example not found. Please make sure the file exists in the installation directory."
+            )
+        
+        # Set target paths
         env_example_path = os.path.join(install_dir, ".env.example")
         env_path = os.path.join(install_dir, ".env")
         
-        # If .env.example doesn't exist in install_dir, look in current directory
-        if not os.path.exists(env_example_path) and os.path.exists(".env.example"):
-            shutil.copy(".env.example", env_example_path)
+        # Copy .env.example to install_dir if needed
+        if env_example_source != env_example_path:
+            shutil.copy(env_example_source, env_example_path)
         
+        # Now copy .env.example to .env
         shutil.copy(env_example_path, env_path)
         example_uuid = str(uuid4())
 
@@ -318,7 +337,7 @@ def update_ovnode():
         menu()
         return
     try:
-        repo = "https://api.github.com/repos/benhomlxs/ov-node/releases/latest"
+        repo = "https://api.github.com/repos/primeZdev/ov-node/releases/latest"
         install_dir = "/opt/ov-node"
         env_file = os.path.join(install_dir, ".env")
         backup_env = "/tmp/ovnode_env_backup"
