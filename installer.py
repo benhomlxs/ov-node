@@ -152,7 +152,18 @@ def install_ovnode():
         print("=" * 50 + Style.RESET_ALL)
         print()
 
-        shutil.copy(".env.example", ".env")
+        # Determine the correct path for .env file
+        install_dir = "/opt/ov-node"
+        env_example_path = (
+            os.path.join(install_dir, ".env.example")
+            if os.path.exists(install_dir)
+            else ".env.example"
+        )
+        env_path = (
+            os.path.join(install_dir, ".env") if os.path.exists(install_dir) else ".env"
+        )
+
+        shutil.copy(env_example_path, env_path)
         example_uuid = str(uuid4())
 
         # Get server IP automatically
@@ -179,13 +190,43 @@ def install_ovnode():
         if PROTOCOL not in ["tcp", "udp"]:
             PROTOCOL = "udp"
 
-        OVPN_PORT = input("OpenVPN Port (default: 1194): ").strip()
-        if OVPN_PORT == "":
-            OVPN_PORT = "1194"
+        # Validate OVPN_PORT
+        while True:
+            OVPN_PORT = input("OpenVPN Port (default: 1194): ").strip()
+            if OVPN_PORT == "":
+                OVPN_PORT = "1194"
+                break
+            try:
+                port_num = int(OVPN_PORT)
+                if 1 <= port_num <= 65535:
+                    break
+                else:
+                    print(
+                        Fore.RED
+                        + "Error: Port must be between 1 and 65535"
+                        + Style.RESET_ALL
+                    )
+            except ValueError:
+                print(Fore.RED + "Error: Port must be a valid number" + Style.RESET_ALL)
 
-        SERVICE_PORT = input("OV-Node service port (default: 9090): ").strip()
-        if SERVICE_PORT == "":
-            SERVICE_PORT = "9090"
+        # Validate SERVICE_PORT
+        while True:
+            SERVICE_PORT = input("OV-Node service port (default: 9090): ").strip()
+            if SERVICE_PORT == "":
+                SERVICE_PORT = "9090"
+                break
+            try:
+                port_num = int(SERVICE_PORT)
+                if 1 <= port_num <= 65535:
+                    break
+                else:
+                    print(
+                        Fore.RED
+                        + "Error: Port must be between 1 and 65535"
+                        + Style.RESET_ALL
+                    )
+            except ValueError:
+                print(Fore.RED + "Error: Port must be a valid number" + Style.RESET_ALL)
 
         API_KEY = input(f"OV-Node API key (default: {example_uuid}): ").strip()
         if API_KEY == "":
@@ -200,7 +241,7 @@ def install_ovnode():
         }
 
         lines = []
-        with open(".env", "r") as f:
+        with open(env_path, "r") as f:
             for line in f:
                 replaced = False
                 for key, value in replacements.items():
@@ -211,7 +252,7 @@ def install_ovnode():
                 if not replaced:
                     lines.append(line)
 
-        with open(".env", "w") as f:
+        with open(env_path, "w") as f:
             f.writelines(lines)
 
         # Apply OpenVPN configuration
@@ -524,9 +565,15 @@ def uninstall_ovnode():
             os.remove("/root/openvpn-install.sh")
             print(Fore.GREEN + "✓ OpenVPN install script removed" + Style.RESET_ALL)
 
-        # Remove .env file if exists
+        # Remove .env file if exists (check both possible locations)
+        env_removed = False
+        if os.path.exists("/opt/ov-node/.env"):
+            os.remove("/opt/ov-node/.env")
+            env_removed = True
         if os.path.exists(".env"):
             os.remove(".env")
+            env_removed = True
+        if env_removed:
             print(Fore.GREEN + "✓ Environment file removed" + Style.RESET_ALL)
 
         print()
