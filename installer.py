@@ -609,7 +609,7 @@ def deactivate_ovnode() -> None:
 
 
 def menu():
-    subprocess.run("clear")
+    subprocess.run(["clear"])
     print(Fore.BLUE + "=" * 34)
     print("Welcome to the OV-Node Installer")
     print("=" * 34 + Style.RESET_ALL)
